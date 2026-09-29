@@ -24,6 +24,7 @@ DEFAULT_WORKERS = 6
 
 
 def _no_window_flags():
+    """Windows 下隐藏 subprocess 弹出的黑窗口"""
     if sys.platform == "win32":
         return subprocess.CREATE_NO_WINDOW
     return 0
@@ -113,7 +114,7 @@ class SecurityHeadersHandler(SimpleHTTPRequestHandler):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("WebDL  ·  Resource Patch Monitor")
+        self.title("WebDL 3.2  ·  Resource Patch Monitor")
         self.geometry("860x720")
         self.configure(bg="#f0f2f5")
         self.minsize(720, 580)
@@ -371,12 +372,12 @@ class App(tk.Tk):
         self.full_frame.pack_forget()
         if self.mode.get() == "debug":
             self.debug_frame.pack(fill="x", pady=(0, 8))
-            self.title("Debug  ·  Resource Patch Monitor")
+            self.title("WebDL 3.2  ·  Debug 模式")
             self.progress_bar.configure(style="blue.Horizontal.TProgressbar")
             self.update_debug_progress()
         elif self.mode.get() == "full":
             self.full_frame.pack(fill="x", pady=(0, 8))
-            self.title("WebDL3.1  ·  全量抓取")
+            self.title("WebDL 3.2  ·  全量抓取")
             self.progress_bar.configure(style="green.Horizontal.TProgressbar")
             self.update_progress()
             if self.executor is None or (
@@ -606,10 +607,31 @@ class App(tk.Tk):
     async def _start_browser(self):
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=False)
+                browser = None
+                used = None
+                # 优先使用系统已安装的 Chrome / Edge，避免打包后找不到 Playwright 自带浏览器
+                for channel in ("chrome", "msedge", None):
+                    try:
+                        if channel:
+                            browser = await p.chromium.launch(
+                                channel=channel,
+                                headless=False,
+                            )
+                            used = channel
+                        else:
+                            browser = await p.chromium.launch(headless=False)
+                            used = "Playwright Chromium"
+                        break
+                    except Exception:
+                        continue
+                if browser is None:
+                    raise RuntimeError(
+                        "无法启动浏览器，请确认已安装 Chrome 或 Edge，"
+                        "或在开发环境执行 playwright install"
+                    )
                 context = await browser.new_context(
-                    locale="en-US",
-                    timezone_id="America/New_York",
+                    locale="zh-CN",
+                    timezone_id="Asia/Shanghai",
                     user_agent=(
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -619,7 +641,7 @@ class App(tk.Tk):
                 )
                 page = await context.new_page()
                 await page.goto(f"http://localhost:{self.port}")
-                self.log("浏览器已打开")
+                self.log(f"浏览器已打开 ({used})")
                 while self.is_running:
                     await asyncio.sleep(0.5)
                 try:
