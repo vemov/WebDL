@@ -5,6 +5,7 @@ import os
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -20,6 +21,12 @@ from playwright.async_api import async_playwright
 MAX_RETRIES = 3
 RETRY_DELAY = 1.5
 DEFAULT_WORKERS = 6
+
+
+def _no_window_flags():
+    if sys.platform == "win32":
+        return subprocess.CREATE_NO_WINDOW
+    return 0
 
 
 class SecurityHeadersHandler(SimpleHTTPRequestHandler):
@@ -369,7 +376,7 @@ class App(tk.Tk):
             self.update_debug_progress()
         elif self.mode.get() == "full":
             self.full_frame.pack(fill="x", pady=(0, 8))
-            self.title("WebDL3.0  ·  全量抓取")
+            self.title("WebDL3.1  ·  全量抓取")
             self.progress_bar.configure(style="green.Horizontal.TProgressbar")
             self.update_progress()
             if self.executor is None or (
@@ -385,7 +392,6 @@ class App(tk.Tk):
         if nbytes < 1024 * 1024 * 1024:
             return f"{nbytes / (1024 * 1024):.2f} MB"
         return f"{nbytes / (1024 * 1024 * 1024):.2f} GB"
-
 
     def _make_check(self, parent, text, variable, **pack_kwargs):
         """自定义对勾复选框（选中 ✓，未选中 ☐）"""
@@ -708,7 +714,13 @@ class App(tk.Tk):
                 if headers.get("Referer"):
                     cmd.extend(["-e", headers["Referer"]])
                 cmd.append(url)
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    creationflags=_no_window_flags()
+                )
                 if result.returncode == 0:
                     for line in result.stdout.splitlines():
                         if line.lower().startswith("content-length:"):
@@ -820,7 +832,13 @@ class App(tk.Tk):
             cmd.extend(["-e", headers["Referer"]])
         cmd.append(url)
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=_no_window_flags()
+            )
             last_report = 0
             start_t = time.time()
             while proc.poll() is None:
